@@ -1,0 +1,966 @@
+{
+ "id": "0916ed2c-8db8-4444-b43e-f85bdc48c68b",
+ "revision": 0,
+ "last_node_id": 301,
+ "last_link_id": 23,
+ "nodes": [
+  {
+   "id": 300,
+   "type": "CarPlacementCanvas",
+   "pos": [
+    40,
+    420
+   ],
+   "size": [
+    539.9336191972985,
+    992
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "background",
+     "shape": 7,
+     "type": "IMAGE",
+     "link": null
+    },
+    {
+     "name": "car_image",
+     "shape": 7,
+     "type": "IMAGE",
+     "link": null
+    },
+    {
+     "name": "car_mask",
+     "shape": 7,
+     "type": "MASK",
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "frame",
+     "type": "IMAGE",
+     "links": [
+      1,
+      2
+     ]
+    },
+    {
+     "name": "car_mask",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CarPlacementCanvas"
+   },
+   "widgets_values": [
+    "04_valley_road.png",
+    "ChatGPT Image Sep 30, 2026, 11_00_58 AM.png",
+    true,
+    "transparency (LoadImage)",
+    0.4959,
+    0.6557,
+    0.296,
+    0,
+    false,
+    0.45,
+    0.012,
+    1.5,
+    1376,
+    768,
+    "{\"v\":4,\"x\":0.4959,\"y\":0.6557,\"scale\":0.296,\"rotation\":0,\"flip_h\":0,\"locked\":true,\"car_layer\":true,\"env_layer\":true,\"hidden\":{\"env_file\":[\"02_front.webp\",\"img (4).webp\",\"01_mountain_road.png\"],\"angle_file\":[\"02_front.png\",\"01_front_3q_left.png\"]}}",
+    ""
+   ],
+   "widgets_values_named": {
+    "env_file": "04_valley_road.png",
+    "angle_file": "ChatGPT Image Sep 30, 2026, 11_00_58 AM.png",
+    "key_studio_bg": true,
+    "mask_mode": "transparency (LoadImage)",
+    "x": 0.4959,
+    "y": 0.6557,
+    "scale": 0.296,
+    "rotation": 0,
+    "flip_h": false,
+    "shadow": 0.45,
+    "shadow_offset": 0.012,
+    "feather": 1.5,
+    "canvas_width": 1376,
+    "canvas_height": 768,
+    "ui_state": "{\"v\":4,\"x\":0.4959,\"y\":0.6557,\"scale\":0.296,\"rotation\":0,\"flip_h\":0,\"locked\":true,\"car_layer\":true,\"env_layer\":true,\"hidden\":{\"env_file\":[\"02_front.webp\",\"img (4).webp\",\"01_mountain_road.png\"],\"angle_file\":[\"02_front.png\",\"01_front_3q_left.png\"]}}",
+    "cpc_canvas": ""
+   },
+   "title": "Blend Your Image Canvas"
+  },
+  {
+   "id": 301,
+   "type": "SaveImage",
+   "pos": [
+    2260,
+    60
+   ],
+   "size": [
+    270,
+    270
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 2
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "car_blend/01_placed"
+   ],
+   "widgets_values_named": {
+    "filename_prefix": "car_blend/01_placed"
+   }
+  },
+  {
+   "id": 200,
+   "type": "UNETLoader",
+   "pos": [
+    660,
+    1220
+   ],
+   "size": [
+    330,
+    60
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": null,
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      6
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "flux-2-klein-9b.safetensors",
+    "default"
+   ]
+  },
+  {
+   "id": 201,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    980,
+    1220
+   ],
+   "size": [
+    330,
+    80
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 6
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      7
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "fusion2250.safetensors",
+    1.0
+   ]
+  },
+  {
+   "id": 202,
+   "type": "CLIPLoader",
+   "pos": [
+    660,
+    720
+   ],
+   "size": [
+    380,
+    90
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": null,
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      8
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "qwen_3_8b_fp8mixed.safetensors",
+    "flux2",
+    "default"
+   ]
+  },
+  {
+   "id": 203,
+   "type": "CLIPTextEncode",
+   "pos": [
+    980,
+    60
+   ],
+   "size": [
+    520,
+    320
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 8
+    },
+    {
+     "name": "text",
+     "type": "STRING",
+     "widget": {
+      "name": "text"
+     },
+     "link": 5
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      9,
+      10
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode"
+   },
+   "widgets_values": [
+    "Photoreal automotive retouch of this exact frame. Blend the car into the environment it stands in: match the ambient light direction, colour temperature and intensity on the bodywork, carry the scene's reflections across the paint and glass, rebuild the contact shadow and the pooled shadow under the car, and unify grain, lens character, depth of field and black level between the car and the road. Keep the car's design, colour, badges, wheels and details exactly as they are. Keep the camera angle, framing, background and composition exactly as they are. Single photograph, seamless edges, no cut-out look, no halo, no pasted-on appearance, no text, no watermark."
+   ],
+   "title": "klein positive  (text <- auto prompt box)"
+  },
+  {
+   "id": 204,
+   "type": "ConditioningZeroOut",
+   "pos": [
+    1300,
+    120
+   ],
+   "size": [
+    280,
+    60
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "conditioning",
+     "type": "CONDITIONING",
+     "link": 9
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      11
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ConditioningZeroOut"
+   },
+   "widgets_values": null
+  },
+  {
+   "id": 205,
+   "type": "VAELoader",
+   "pos": [
+    660,
+    980
+   ],
+   "size": [
+    330,
+    60
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": null,
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      12,
+      13
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "flux2-vae.safetensors"
+   ]
+  },
+  {
+   "id": 206,
+   "type": "ImageScaleToTotalPixels",
+   "pos": [
+    660,
+    420
+   ],
+   "size": [
+    340,
+    100
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "*",
+     "link": 1
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      14,
+      15
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ImageScaleToTotalPixels"
+   },
+   "widgets_values": [
+    "area",
+    1.0,
+    1
+   ]
+  },
+  {
+   "id": 207,
+   "type": "GetImageSize+",
+   "pos": [
+    980,
+    420
+   ],
+   "size": [
+    280,
+    80
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 14
+    }
+   ],
+   "outputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "links": [
+      16,
+      17
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "links": [
+      16,
+      17
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [
+      16,
+      17
+     ],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "GetImageSize+"
+   },
+   "widgets_values": null
+  },
+  {
+   "id": 208,
+   "type": "VAEEncode",
+   "pos": [
+    980,
+    700
+   ],
+   "size": [
+    280,
+    60
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "pixels",
+     "type": "IMAGE",
+     "link": 15
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 12
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      18
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEEncode"
+   },
+   "widgets_values": null
+  },
+  {
+   "id": 209,
+   "type": "ReferenceLatent",
+   "pos": [
+    1620,
+    60
+   ],
+   "size": [
+    300,
+    80
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "conditioning",
+     "type": "CONDITIONING",
+     "link": 10
+    },
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "link": 18
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      19
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ReferenceLatent"
+   },
+   "widgets_values": null
+  },
+  {
+   "id": 210,
+   "type": "EmptyFlux2LatentImage",
+   "pos": [
+    1300,
+    420
+   ],
+   "size": [
+    300,
+    130
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "link": 16
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "link": 17
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      20
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "EmptyFlux2LatentImage"
+   },
+   "widgets_values": [
+    1376,
+    768,
+    1
+   ]
+  },
+  {
+   "id": 211,
+   "type": "KSampler",
+   "pos": [
+    1620,
+    640
+   ],
+   "size": [
+    320,
+    260
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 7
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 19
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 11
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 20
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      21
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    1234,
+    "fixed",
+    8,
+    1.0,
+    "euler",
+    "simple",
+    1.0
+   ]
+  },
+  {
+   "id": 212,
+   "type": "VAEDecode",
+   "pos": [
+    1940,
+    640
+   ],
+   "size": [
+    250,
+    60
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 21
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 13
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      22,
+      23
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEDecode"
+   },
+   "widgets_values": null
+  },
+  {
+   "id": 213,
+   "type": "SaveImage",
+   "pos": [
+    2260,
+    560
+   ],
+   "size": [
+    400,
+    450
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 22
+    }
+   ],
+   "outputs": null,
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "car_blend/02_klein_fusion"
+   ]
+  },
+  {
+   "id": 214,
+   "type": "PreviewImage",
+   "pos": [
+    2260,
+    900
+   ],
+   "size": [
+    340,
+    280
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 23
+    }
+   ],
+   "outputs": null,
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": null
+  },
+  {
+   "id": 216,
+   "type": "FusionPromptBox",
+   "pos": [
+    660,
+    60
+   ],
+   "size": [
+    420,
+    260
+   ],
+   "flags": {},
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "car_name",
+     "type": "STRING",
+     "link": 3
+    },
+    {
+     "name": "env_name",
+     "type": "STRING",
+     "link": 4
+    }
+   ],
+   "outputs": [
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "links": [
+      5
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "FusionPromptBox"
+   },
+   "widgets_values": [
+    "Photoreal automotive retouch of this exact frame. Blend the car into the environment it stands in: match the ambient light direction, colour temperature and intensity across the bodywork, carry the scene's reflections over the paint and glass, keep the tyres grounded with a soft contact shadow, and leave the car's shape, position and angle exactly as placed.\nSubject: {car}. Environment: {env}.",
+    ""
+   ],
+   "widgets_values_named": {
+    "shot": "Photoreal automotive retouch of this exact frame. Blend the car into the environment it stands in: match the ambient light direction, colour temperature and intensity across the bodywork, carry the scene's reflections over the paint and glass, keep the tyres grounded with a soft contact shadow, and leave the car's shape, position and angle exactly as placed.\nSubject: {car}. Environment: {env}.",
+    "extra": ""
+   }
+  }
+ ],
+ "links": [
+  [
+   1,
+   300,
+   0,
+   206,
+   "image",
+   "IMAGE"
+  ],
+  [
+   2,
+   300,
+   0,
+   301,
+   "images",
+   "IMAGE"
+  ],
+  [
+   3,
+   300,
+   2,
+   216,
+   "car_name",
+   "STRING"
+  ],
+  [
+   4,
+   300,
+   3,
+   216,
+   "env_name",
+   "STRING"
+  ],
+  [
+   5,
+   216,
+   0,
+   203,
+   "text",
+   "STRING"
+  ],
+  [
+   6,
+   200,
+   0,
+   201,
+   "model",
+   "MODEL"
+  ],
+  [
+   7,
+   201,
+   0,
+   211,
+   "model",
+   "MODEL"
+  ],
+  [
+   8,
+   202,
+   0,
+   203,
+   "clip",
+   "CLIP"
+  ],
+  [
+   9,
+   203,
+   0,
+   204,
+   "conditioning",
+   "CONDITIONING"
+  ],
+  [
+   10,
+   203,
+   0,
+   209,
+   "conditioning",
+   "CONDITIONING"
+  ],
+  [
+   11,
+   204,
+   0,
+   211,
+   "negative",
+   "CONDITIONING"
+  ],
+  [
+   12,
+   205,
+   0,
+   208,
+   "vae",
+   "VAE"
+  ],
+  [
+   13,
+   205,
+   0,
+   212,
+   "vae",
+   "VAE"
+  ],
+  [
+   14,
+   206,
+   0,
+   207,
+   "image",
+   "IMAGE"
+  ],
+  [
+   15,
+   206,
+   0,
+   208,
+   "pixels",
+   "IMAGE"
+  ],
+  [
+   16,
+   207,
+   0,
+   210,
+   "width",
+   "INT"
+  ],
+  [
+   17,
+   207,
+   1,
+   210,
+   "height",
+   "INT"
+  ],
+  [
+   18,
+   208,
+   0,
+   209,
+   "latent",
+   "LATENT"
+  ],
+  [
+   19,
+   209,
+   0,
+   211,
+   "positive",
+   "CONDITIONING"
+  ],
+  [
+   20,
+   210,
+   0,
+   211,
+   "latent_image",
+   "LATENT"
+  ],
+  [
+   21,
+   211,
+   0,
+   212,
+   "samples",
+   "LATENT"
+  ],
+  [
+   22,
+   212,
+   0,
+   213,
+   "images",
+   "IMAGE"
+  ],
+  [
+   23,
+   212,
+   0,
+   214,
+   "images",
+   "IMAGE"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.75,
+   "offset": [
+    0,
+    0
+   ]
+  }
+ },
+ "version": 0.4
+}
