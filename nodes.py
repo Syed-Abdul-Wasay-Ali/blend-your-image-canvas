@@ -8,38 +8,109 @@ Back-end:  this file owns the pixel math, so a headless /prompt run produces byt
            the placement the canvas showed.
 """
 
+import importlib
 import json
 import math
 import os
+import re
 
 import numpy as np
 import torch
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFile, ImageFilter
 
 import folder_paths
 
+# an upload that was cut short still composites (PIL fills the missing rows from the last
+# complete one) instead of throwing at the composite stage
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 CATEGORY = "car placement"
 
-IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
+# Layer formats come from the decoder, not this tuple: a layer may be any image Pillow reads,
+# so the list only documents the common ones and is not used to gate anything. Non-car photos,
+# 16-bit TIFFs, palette GIFs, JP2/PCX/DDS/TGA and extension-less exports all list as layers.
+IMAGE_EXT = (".png", ".jpg", ".jpeg", ".jfif", ".webp", ".bmp", ".dib", ".tif", ".tiff",
+             ".gif", ".tga", ".ico", ".ppm", ".pgm", ".pbm", ".pcx", ".dds", ".jp2",
+             ".j2k", ".psd", ".sgi", ".im", ".msp", ".xbm", ".avif", ".heic", ".heif")
+
+# Leading bytes that identify a format Pillow can decode here. Deliberately narrow: a text
+# file renamed .png matches none of them, and a format nothing can read (psd without a psd
+# decoder, heic without pillow_heif) is not advertised as a layer just because it sniffed.
+_MAGIC_PREFIX = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a", b"BM",
+                 b"II*\x00", b"MM\x00*", b"\x00\x00\x01\x00", b"\x00\x00\x02\x00",
+                 b"\x00\x00\x0a\x00", b"DDS ", b"\x00\x00\x00\x0cjP", b"\xff\x4f\xff\x51",
+                 b"qoif")
+_PPM_MAGIC = (b"P1", b"P2", b"P3", b"P4", b"P5", b"P6")
+
+# optional decoders: when these are installed they widen "any format" to heic/avif too
+for _mod, _fn in (("pillow_heif", "register_heif_opener"),
+                  ("pillow_avif", "register_avif_opener")):
+    try:
+        getattr(importlib.import_module(_mod), _fn)()
+    except Exception:
+        pass
+
+
+def _sniff(path):
+    """Cheap verdict from the first bytes: True, False, or None when the decoder must decide.
+
+    A file that is not an image is rejected here even when it is named .png - the picker must
+    only ever offer layers that will actually composite.
+    """
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(512)
+    except OSError:
+        return False
+    if not head:
+        return False
+    if head.startswith(b"RIFF") and head[8:12] == b"WEBP":
+        return True
+    if head[:2] in _PPM_MAGIC and head[2:3] in (b"\n", b"\r", b" ", b"\t"):
+        return True
+    if any(head.startswith(m) for m in _MAGIC_PREFIX):
+        return True
+    return None
+
+
+def _is_image(path):
+    """True when the file is a usable image: byte sniff first, Pillow header probe second."""
+    v = _sniff(path)
+    if v is not None:
+        return v
+    try:
+        with Image.open(path) as im:
+            return bool(im.format)
+    except Exception:
+        return False
+
+
+def _list_images(d):
+    """Every decodable image in a folder, whatever its extension."""
+    try:
+        entries = os.listdir(d)
+    except OSError:
+        return []
+    names = []
+    for f in entries:
+        p = os.path.join(d, f)
+        try:
+            if not os.path.isfile(p):
+                continue
+        except OSError:
+            continue
+        if _is_image(p):
+            names.append(f)
+    return sorted(names)
 
 
 def _input_images():
-    d = folder_paths.get_input_directory()
-    try:
-        names = [f for f in os.listdir(d) if f.lower().endswith(IMAGE_EXT)]
-    except OSError:
-        names = []
-    return ["(none)"] + sorted(names)
+    return ["(none)"] + _list_images(folder_paths.get_input_directory())
 
 
 def _folder_images(sub):
     """Dropdown options for a hard-coded selector folder (input/<sub>)."""
-    d = os.path.join(folder_paths.get_input_directory(), sub)
-    try:
-        names = [f for f in os.listdir(d) if f.lower().endswith(IMAGE_EXT)]
-    except OSError:
-        names = []
-    return ["(none)"] + sorted(names)
+    return ["(none)"] + _list_images(os.path.join(folder_paths.get_input_directory(), sub))
 
 
 def _first(sub):
@@ -56,6 +127,21 @@ def _resolve(name, subfolder=""):
         if os.path.isfile(cand):
             return cand
     return None
+
+
+def _open_layer(path, mode):
+    """Open any image the decoder understands and normalize it to `mode`.
+
+    Tolerates a truncated file and odd source modes (palette, CMYK, 16-bit, LA, I;16), so a
+    layer is not limited to well-formed RGB PNG/JPEG. Fails loudly with the file named rather
+    than silently falling back to an empty plate.
+    """
+    try:
+        im = Image.open(path)
+        im.load()
+        return im if mode is None or im.mode == mode else im.convert(mode)
+    except Exception as e:
+        raise RuntimeError("cannot decode layer %r: %s" % (os.path.basename(path), e)) from e
 
 
 def _t2pil(t):
@@ -273,7 +359,7 @@ class CarPlacementCanvas:
         else:
             p = _resolve(env_file, "car_env")
             if p:
-                src_bg = Image.open(p).convert("RGB")
+                src_bg = _open_layer(p, "RGB")
         if src_bg is not None:
             bg = src_bg.copy()
             self._stash(uid, "bg", src_bg)
@@ -298,7 +384,7 @@ class CarPlacementCanvas:
         elif car_layer:
             p = _resolve(angle_file, "car_angles")
             if p:
-                car = Image.open(p).convert("RGBA")
+                car = _open_layer(p, "RGBA")
         # an opaque source (studio sweep shot) becomes a real cutout here, so the
         # shipped angle plates and a hand-dropped one behave the same way
         if car is not None and car.mode != "RGBA":

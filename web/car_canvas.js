@@ -32,20 +32,63 @@ function setWidget(node, name, value) {
 }
 
 const loadErrors = [];
+const loadWarnings = [];
+
+// createImageBitmap() is strict: it throws InvalidStateError on a PNG whose trailing
+// bytes are missing (an interrupted upload), even though a plain <img> renders that
+// exact file. Decode through <img> + drawImage as a second path so a slightly damaged
+// plate still appears instead of silently falling back to a stashed frame.
+function bitmapViaImg(url) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = im.naturalWidth || 1;
+        c.height = im.naturalHeight || 1;
+        c.getContext("2d").drawImage(im, 0, 0);
+        resolve(c);
+      } catch (e) {
+        reject(e);
+      }
+    };
+    im.onerror = () => reject(new Error("the browser could not decode the file"));
+    im.src = url;
+  });
+}
 
 async function loadBitmap(url) {
+  // same origin as the ComfyUI page, so a plain fetch avoids depending on the
+  // frontend's api helper shape (which differs across frontend versions).
+  let status = 0;
   try {
-    // same origin as the ComfyUI page, so a plain fetch avoids depending on the
-    // frontend's api helper shape (which differs across frontend versions).
     const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) {
-      loadErrors.push(`${r.status} ${url}`);
-      return null;
+    status = r.status;
+    if (r.ok) {
+      const b = await r.blob();
+      try {
+        const bm = await createImageBitmap(b);
+        if (bm) return bm;
+      } catch (e) {
+        // the strict decoder refused the bytes - use the tolerant path and report it
+        try {
+          const c = await bitmapViaImg(url);
+          loadWarnings.push(`${url.split("?")[0]}: shown via <img> fallback (${e.name || e})`);
+          return c;
+        } catch (e2) {
+          loadErrors.push(`${e2.message || e2} ${url}`);
+          return null;
+        }
+      }
     }
-    const b = await r.blob();
-    return await createImageBitmap(b);
   } catch (e) {
     loadErrors.push(`${e} ${url}`);
+    return null;
+  }
+  loadErrors.push(`${status} ${url}`);
+  try {
+    return await bitmapViaImg(url);
+  } catch (e) {
     return null;
   }
 }
@@ -62,6 +105,37 @@ async function uploadImage(file, subfolder) {
   // the subfolder is already part of the widget's option namespace, so the stored value
   // is the bare file name (a "car_angles/x.png" value would double the folder)
   return j.name;
+}
+
+// The canvas can paint anything the browser decodes, but the server composite re-opens the
+// file with Pillow. Formats Pillow reads natively are uploaded byte-for-byte; anything else
+// (heic / avif / svg / exr ...) is re-encoded to PNG once, so a layer in any format still
+// renders in the graph instead of failing at composite time.
+const NATIVE_EXT = ["png", "jpg", "jpeg", "jfif", "webp", "bmp", "dib", "tif", "tiff",
+  "gif", "tga", "ico", "ppm", "pgm", "pbm", "pcx", "dds", "jp2", "psd", "sgi", "xbm"];
+
+function extOf(name) {
+  const m = /\.([^.]+)$/.exec(String(name || ""));
+  return m ? m[1].toLowerCase() : "";
+}
+
+function needsPNG(name) {
+  const e = extOf(name);
+  return e !== "" && !NATIVE_EXT.includes(e);
+}
+
+// <img> + drawImage (not createImageBitmap) so svg and other non-bitmap inputs decode too
+async function toPNG(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const c = await bitmapViaImg(url);
+    const blob = await new Promise((res, rej) =>
+      c.toBlob((b) => (b ? res(b) : rej(new Error("could not re-encode"))), "image/png"));
+    return new File([blob], String(file.name).replace(/\.[^.]+$/, "") + ".png",
+      { type: "image/png" });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function selectFile(node, name, filename) {
@@ -299,6 +373,9 @@ function buildUI(node) {
 
   function rebuildStrips() {
     for (const s of strips) s.rebuild();
+    // a new or removed tile changes how many rows each strip wraps to, and nothing
+    // else runs after a strip rebuild, so the height has to be re-fitted here
+    layout();
   }
 
   // Delete a single image from a section. The tile disappears and the name is kept in
@@ -346,13 +423,19 @@ function buildUI(node) {
     refresh();
   }
 
-  const envStrip = buildStrip("car environment", "env_file", "car_env");
-  const carStrip = buildStrip("car angles", "angle_file", "car_angles");
+  const envStrip = buildStrip("background layer", "env_file", "car_env");
+  const carStrip = buildStrip("object layer", "angle_file", "car_angles");
   container.append(envStrip, carStrip);
 
   const fileInput = document.createElement("input");
   fileInput.type = "file";
-  fileInput.accept = "image/*";
+  // any format, not just the ones Windows maps to an image MIME: "image/*" alone hides
+  // .heic / .avif / .tga / .psd / .jp2 files in the picker, so list them explicitly too
+  fileInput.accept = "image/*," + [
+    "png", "jpg", "jpeg", "jfif", "webp", "bmp", "dib", "gif", "tif", "tiff", "tga",
+    "ico", "avif", "heic", "heif", "jp2", "j2k", "psd", "ppm", "pgm", "pbm", "pcx",
+    "dds", "svg", "xbm", "exr", "hdr",
+  ].map((e) => "." + e).join(",");
   fileInput.style.display = "none";
   container.append(fileInput);
   // one permanent handler: a section's "+ upload" button only sets the destination
@@ -361,8 +444,19 @@ function buildUI(node) {
     const f = fileInput.files?.[0];
     fileInput.value = "";
     if (!f || !pickTarget) return;
-    const name = await uploadImage(f, pickTarget.subfolder);
+    let up = f;
+    let note = "";
+    if (needsPNG(f.name)) {
+      try {
+        up = await toPNG(f);
+        note = `${f.name}: re-encoded to PNG so the server composite can read it`;
+      } catch (e) {
+        note = `${f.name}: uploaded as-is, this browser could not decode it (${e.message || e})`;
+      }
+    }
+    const name = await uploadImage(up, pickTarget.subfolder);
     choose(pickTarget.widgetName, name);
+    if (note) loadWarnings.push(note);
     // the new file must appear as a tile: the combo grew in choose(), so rebuild after
     rebuildStrips();
   };
@@ -462,6 +556,18 @@ function buildUI(node) {
       ctx.fillStyle = "#5a6272";
       ctx.font = "11px sans-serif";
       ctx.fillText("no background: pick an environment above, or connect an IMAGE", 10, 20);
+    }
+
+    const notice = state.notice || state.noticeWarn;
+    if (notice) {
+      const bad = !!state.notice;
+      const txt = notice.length > 78 ? notice.slice(0, 77) + "..." : notice;
+      ctx.font = "11px sans-serif";
+      const tw = Math.min(ctx.measureText(txt).width, state.dispW - 34);
+      ctx.fillStyle = bad ? "rgba(154,28,28,0.92)" : "rgba(122,86,0,0.92)";
+      ctx.fillRect(8, 8, tw + 18, 24);
+      ctx.fillStyle = "#fff7ed";
+      ctx.fillText(txt, 17, 24);
     }
 
     if (!state.car || state.showResult) {
@@ -706,10 +812,14 @@ function buildUI(node) {
     const ar = state.bg ? state.bg.height / state.bg.width : 0.62;
     state.dispW = w;
     state.dispH = Math.max(MIN_H, Math.min(MAX_H, Math.round(w * ar)));
-    // the two galleries sit under the canvas: keep the node tall enough for both
-    // (headers + the wrapped rows: 34px covered only one row per strip)
+    // the two galleries sit under the canvas: the node is fitted to them in both
+    // directions, so a wrapped third row expands the node and removing that row takes
+    // the space back instead of leaving it empty. Growing is always safe; shrinking
+    // waits for container.isConnected, because stripBlockHeight() falls back to 96
+    // until the strips are mounted and acting on that reading would clip them.
     const need = state.dispH + stripBlockHeight() + 54;
-    if (node.size && node.size[1] < need) node.setSize([node.size[0], need]);
+    const fit = node.size[1] < need || (container.isConnected && node.size[1] > need + 2);
+    if (node.size && fit) node.setSize([node.size[0], need]);
     draw();
   }
 
@@ -731,17 +841,21 @@ function buildUI(node) {
     // the stashed frame is authoritative only when it is the frame already on screen
     const same = state.loadedSel === sel;
 
+    let bgErr = null;
     let bg = same && id ? await loadBitmap(`/view?filename=cpc_${id}_bg.png&type=temp&t=${stamp}`) : null;
     if (!bg && bgFile && bgFile !== "(none)") {
       bg = (await loadBitmap(`/view?filename=${encodeURIComponent(bgFile)}&type=input&subfolder=car_env`)) ||
            (await loadBitmap(`/view?filename=${encodeURIComponent(bgFile)}&type=input`));
+      if (!bg) bgErr = `environment "${bgFile}": file missing or corrupt, nothing to show`;
     }
     // plate that arrived on a wired IMAGE input: no file to read back, only the stash
     if (!bg && id) bg = await loadBitmap(`/view?filename=cpc_${id}_bg.png&type=temp&t=${stamp}`);
     let car = same && id ? await loadBitmap(`/view?filename=cpc_${id}_car.png&type=temp&t=${stamp}`) : null;
+    let carErr = null;
     if (!car && carFile && carFile !== "(none)") {
       car = (await loadBitmap(`/view?filename=${encodeURIComponent(carFile)}&type=input&subfolder=car_angles`)) ||
             (await loadBitmap(`/view?filename=${encodeURIComponent(carFile)}&type=input`));
+      if (!car) carErr = `car image "${carFile}": file missing or corrupt, nothing to show`;
     }
     if (!car && id) car = await loadBitmap(`/view?filename=cpc_${id}_car.png&type=temp&t=${stamp}`);
     let out = id ? await loadBitmap(`/view?filename=cpc_${id}_out.png&type=temp&t=${stamp}`) : null;
@@ -759,6 +873,11 @@ function buildUI(node) {
     state.loaded = { bg: !!state.bg, car: !!state.car, out: !!out };
     if (state.out) resBtn.classList.add("has");
     state.loadErrors = loadErrors.slice(-6);
+    state.loadWarnings = loadWarnings.slice(-6);
+    // A failed or degraded plate has to be visible. Before this, a tick that failed to
+    // load simply redrew the stashed frame, so the selection looked like it did nothing.
+    state.notice = bgErr || carErr || null;
+    state.noticeWarn = state.notice ? null : (loadWarnings[loadWarnings.length - 1] || null);
     layout();
   }
 

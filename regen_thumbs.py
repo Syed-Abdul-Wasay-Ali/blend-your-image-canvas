@@ -30,7 +30,7 @@ for sub in thumbs.SUBFOLDERS:
     if not src_dir.is_dir():
         print(f"{sub}: (no such folder)")
         continue
-    files = sorted(p for p in src_dir.iterdir() if p.suffix.lower() in thumbs.IMAGE_EXT)
+    files = sorted(p for p in src_dir.iterdir() if p.is_file() and thumbs.is_image(str(p)))
     for p in files:
         out = thumbs.ensure_thumb(sub, p.name)
         print(f"{sub}/{p.name} -> {out.name if out else 'FAILED'} ({out.stat().st_size if out else 0} bytes)")
